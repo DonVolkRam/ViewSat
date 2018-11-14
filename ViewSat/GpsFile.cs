@@ -8,6 +8,15 @@ namespace ViewSat
 {
     class Package
     {
+        string Name { get; set; }
+        int Size { get; set; }
+        public byte Chksum { get; set; }
+
+        public Package(string name, int size)
+        {
+            Name = name;
+            Size = size;
+        }
 
     }
 
@@ -41,22 +50,30 @@ namespace ViewSat
     class GpsFile
     {
         string FileName { get; set; }
-        FileStream GpsStream { get; set; }
+        FileStream stream { get; set; }
+        MemoryStream GpsStream;
+        
+        LogFile Log;
         public GpsFile(string filename)
         {
             #region считывание файла
-            LogFile Log = new LogFile("LogFile.txt");
+            Log = new LogFile("..\\..\\LogFile.txt");
             Log.Write("Открытие файла gps");
             try
             {
-                //                StreamReader gpsReader = new StreamReader(filename);
-                GpsStream = new FileStream(filename, FileMode.Open);
+                stream = new FileStream(filename, FileMode.Open);
                 Console.WriteLine("Успешное открытие файла" + filename);
                 Log.Write("Успешное открытие файла" + filename);
-
+                Log.Write($"Размер файла {stream.Length}");
                 FileName = filename;
+                GpsStream = new MemoryStream();
+                stream.CopyTo(GpsStream);
+                GpsStream.Position = 0;
 
-                Read(/*ref gpsReader*/);
+
+                stream.Close();
+
+                Read();
                 GpsStream.Close();
                 Console.WriteLine("Чтение завершено");
                 Log.Write("Чтение завершено");
@@ -74,14 +91,32 @@ namespace ViewSat
 
             #endregion
         }
-        public void Read(/*ref FileStream gpsStream*/)
-        {
-
-            LogFile Log = new LogFile("LogFile.txt");
-            Log.Write("Открытие файла gps");
-            //            char[] buf = new char[5];
+        List<Package> Packages; 
+        public void Read()
+        {           
+            Log.Write("Чтение файла");
             byte[] buf = new byte[5];
+            List<Package> _Packages = new List<Package>();
+
+            //Packages.Add(new Package("~~0", 5));
+            //Packages.Add(new Package("RD0", 5));
+            //Packages.Add(new Package("PG0", 5));
+            //Packages.Add(new Package("VG0", 5));
+            //Packages.Add(new Package("SG0", 5));
+            //Packages.Add(new Package("DP0", 5));
+            //Packages.Add(new Package("PS0", 5));
+            //Packages.Add(new Package("TO0", 5));
+            //Packages.Add(new Package("SI0", 5));
+            //Packages.Add(new Package("SS0", 5));
+            //Packages.Add(new Package("EL0", 5));
+            //Packages.Add(new Package("AZ0", 5));
+            //Packages.Add(new Package("EC0", 5));
+            //Packages.Add(new Package("FC0", 5));
+            //Packages.Add(new Package("||0", 1));
+
+
             List<string> Packages = new List<string>
+
             {
                 "~~0",
                 "RD0",
@@ -101,15 +136,17 @@ namespace ViewSat
             };
 
             List<PG01E> PG = new List<PG01E>();
-            DateTime Start = new DateTime(); // Время запуска
-            Start = DateTime.Now;
+            DateTime Start = new DateTime(); // Время запуска           
             DateTime Stoped = new DateTime(); //Время окончания
             TimeSpan Elapsed = new TimeSpan();
+            Start = DateTime.Now;
             string CurBuf;
-            string xPackSize;
+            //размер пакета в 16ричной системе
+            string xPackSize="";
             int PackSize=0;
-            string LatPackage = "";
-            while ((GpsStream.Read(buf, 0, 5)) != -1)
+            string LastPackage = "";
+            int LastPackSize = 0;
+            while (GpsStream.Read(buf, 0, 5) != -1)
             {
 
                 Stoped = DateTime.Now; // Стоп (Записываем время)
@@ -117,28 +154,68 @@ namespace ViewSat
                 Console.Clear();
                 Console.WriteLine(Elapsed.Ticks.ToString());
                 Console.WriteLine($"{GpsStream.Position} байт из {GpsStream.Length}");
-
                 CurBuf = Encoding.Default.GetString(buf);
-                xPackSize = Encoding.Default.GetString(buf, 3, 2);
                 try
                 {
-                    PackSize = Convert.ToInt32(xPackSize, 16) + 1;
+                    xPackSize = Encoding.Default.GetString(buf, 3, 2);
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine(e.Message);
-                    Console.WriteLine($"Проблема чтения {LatPackage} пакета");
-                    
-                    break;
+                    Log.Write($"Ошибка xPackSize: Чтения {GpsStream.Position} байта. {e.Message}");
+                    Log.Write($"Ошибка xPackSize: Потеря байтов у маски пакета");
                 }
-                //GpsStream.Position -= 4;
+               
+                try
+                {
+                    //на один больше чтоб попасть на позицию следующей маски пакета
+                    PackSize = Convert.ToInt32(xPackSize, 16) + 1; 
+                }
+                catch (FormatException e)
+                {
+                    Log.Write($"Ошибка PackSize: Чтения {GpsStream.Position} байта. {e.Message}");
+//                    Log.Write($"Проблема чтения {LastPackage} пакета");
+                    bool next = true;
+                    GpsStream.Position -= LastPackSize+5;
+                    for (int i = 0; i < LastPackSize && next; i++)
+                    {
+                        byte[] ebuf = new byte[3];
+                        GpsStream.Read(ebuf, 0, 3);
+                        GpsStream.Position-=2;
+                        
+                        CurBuf = Encoding.Default.GetString(ebuf);
+                        for (int j = 0; j < Packages.Count && next; j++)
+                        {
+                            if (CurBuf == Packages[j])
+                            {
+                                Log.Write($"Ошибка: Пакет {LastPackage} по адреcу {GpsStream.Position-LastPackSize} равен {i} байт. Требуемый размер {LastPackSize} байт");
+//                                Log.Write($"Ошибка чтения {GpsStream.Position} байта");
+                                GpsStream.Position -= 1;
+                                next = false;
+                            }
+                        }
+                    }
+                    
+        //            break;
+                }
+                catch (Exception e)
+                {
+                    string a = e.Message;
+                }
 
+                //GpsStream.Position -= 4;
+                //Ищем совпадения среди известных пакетов
                 for (int i = 0; i < Packages.Count; i++)
                 {
+                    //как только нашли совпадение
                     if (CurBuf == Packages[i] + xPackSize)
                     {
+                        //смещаем позици чтения на размер пакета в байтах
                         GpsStream.Position += PackSize;
-                        LatPackage = Packages[i];
+                        //зафиксируем последнюю удачно считанную маску пакета
+                        LastPackage = Packages[i];
+                        //и его размер
+                        LastPackSize = PackSize;
+                        //пропускаем остальные сравнения 
                         continue;
                     }
 

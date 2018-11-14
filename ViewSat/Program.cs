@@ -12,7 +12,7 @@ namespace ViewSat
 
         static void Main(string[] args)
         {
-            LogFile Log = new LogFile("LogFile.txt");
+            LogFile Log = new LogFile("..\\..\\LogFile.txt");
             Console.WriteLine("Введите имя файла");
 //            string filename = Console.ReadLine();
             string filename = "..\\..\\10_1_1_C1.gps";
