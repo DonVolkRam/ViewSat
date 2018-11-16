@@ -5,14 +5,14 @@ namespace ViewSat
 {
     class LogFile
     {
-        private readonly string FilePath;
+        private string FileName;
 
         public LogFile(string filename)
         {
             try
             {
                 StreamReader logReader = new StreamReader(filename);
-                FilePath = filename;               
+                FileName = filename;               
                 logReader.Close();
             }
             catch (FileNotFoundException FNFE)        
@@ -26,7 +26,7 @@ namespace ViewSat
             try
             {
 //                StreamWriter logWriter = new StreamWriter(FileName);                
-                File.AppendAllText(FilePath, DateTime.Now + " ----- " + message + "\n");
+                File.AppendAllText(FileName, DateTime.Now + " ----- " + message + "\n");
                 //logWriter.WriteLine(message);                
                 //logWriter.Close();
             }

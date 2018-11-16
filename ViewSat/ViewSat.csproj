@@ -55,7 +55,6 @@
   <ItemGroup>
     <Compile Include="Class1.cs" />
     <Compile Include="LogFile.cs" />
-    <Compile Include="Package.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="GpsFile.cs" />
