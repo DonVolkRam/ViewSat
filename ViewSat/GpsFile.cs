@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
-
+using System.Text.RegularExpressions;
 
 namespace ViewSat
 {
@@ -47,12 +47,14 @@ namespace ViewSat
 
     };
 
+
+
     class GpsFile
     {
         string FileName { get; set; }
         FileStream stream { get; set; }
         MemoryStream GpsStream;
-        
+
         LogFile Log;
         public GpsFile(string filename)
         {
@@ -91,9 +93,20 @@ namespace ViewSat
 
             #endregion
         }
-        List<Package> Packages; 
+
+        private int RecognizePackage(List<string> Packages, string buf)
+        {
+            for (int i = 0; i < Packages.Count; i++)
+            {
+                if (buf.Contains(Packages[i].Remove(1, 1)))
+                    return i;
+            }
+            return -1;
+        }
+
+        List<Package> Packages;
         public void Read()
-        {           
+        {
             Log.Write("Чтение файла");
             byte[] buf = new byte[5];
             List<Package> _Packages = new List<Package>();
@@ -142,8 +155,8 @@ namespace ViewSat
             Start = DateTime.Now;
             string CurBuf;
             //размер пакета в 16ричной системе
-            string xPackSize="";
-            int PackSize=0;
+            string xPackSize = "";
+            int PackSize = 0;
             string LastPackage = "";
             int LastPackSize = 0;
             while (GpsStream.Read(buf, 0, 5) != -1)
@@ -164,38 +177,40 @@ namespace ViewSat
                     Log.Write($"Ошибка xPackSize: Чтения {GpsStream.Position} байта. {e.Message}");
                     Log.Write($"Ошибка xPackSize: Потеря байтов у маски пакета");
                 }
-               
+
                 try
                 {
                     //на один больше чтоб попасть на позицию следующей маски пакета
-                    PackSize = Convert.ToInt32(xPackSize, 16) + 1; 
+                    PackSize = Convert.ToInt32(xPackSize, 16) + 1;
                 }
                 catch (FormatException e)
                 {
+                    int a = RecognizePackage(Packages, CurBuf);
+                    int c;
+                    if (a > -1)
+                        c = 7;
                     Log.Write($"Ошибка PackSize: Чтения {GpsStream.Position} байта. {e.Message}");
-//                    Log.Write($"Проблема чтения {LastPackage} пакета");
+                    //Log.Write($"Проблема чтения {LastPackage} пакета");
                     bool next = true;
-                    GpsStream.Position -= LastPackSize+5;
+                    GpsStream.Position -= LastPackSize + 5;
                     for (int i = 0; i < LastPackSize && next; i++)
                     {
                         byte[] ebuf = new byte[3];
                         GpsStream.Read(ebuf, 0, 3);
-                        GpsStream.Position-=2;
-                        
+                        GpsStream.Position -= 2;
+
                         CurBuf = Encoding.Default.GetString(ebuf);
                         for (int j = 0; j < Packages.Count && next; j++)
                         {
                             if (CurBuf == Packages[j])
                             {
-                                Log.Write($"Ошибка: Пакет {LastPackage} по адреcу {GpsStream.Position-LastPackSize} равен {i} байт. Требуемый размер {LastPackSize} байт");
-//                                Log.Write($"Ошибка чтения {GpsStream.Position} байта");
+                                Log.Write($"Ошибка: Пакет {LastPackage} по адреcу {GpsStream.Position - LastPackSize} равен {i} байт. Требуемый размер {LastPackSize} байт");
+                                //Log.Write($"Ошибка чтения {GpsStream.Position} байта");
                                 GpsStream.Position -= 1;
                                 next = false;
                             }
                         }
                     }
-                    
-        //            break;
                 }
                 catch (Exception e)
                 {
@@ -222,7 +237,6 @@ namespace ViewSat
                 }
 
                 Start = DateTime.Now; // Старт (Записываем время)
-
             }
         }
     }
