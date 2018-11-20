@@ -107,6 +107,7 @@ namespace ViewSat
         List<Package> Packages;
         public void Read()
         {
+            Log.Write("====================================================================================================");
             Log.Write("Чтение файла");
             byte[] buf = new byte[5];
             List<Package> _Packages = new List<Package>();
@@ -178,11 +179,12 @@ namespace ViewSat
             int PackSize = 0;
             string LastPackage = "";
             int LastPackSize = 0;
-            while (GpsStream.Read(buf, 0, 5) != -1)
+            Start = DateTime.Now; // Старт (Записываем время)
+            while (GpsStream.Read(buf, 0, 5) != 0)
             {
 
-                Stoped = DateTime.Now; // Стоп (Записываем время)
-                Elapsed = Stoped.Subtract(Start);
+//                Stoped = DateTime.Now; // Стоп (Записываем время)
+//                Elapsed = Stoped.Subtract(Start);
                 Console.Clear();
                 Console.WriteLine(Elapsed.Ticks.ToString());
                 Console.WriteLine($"{GpsStream.Position} байт из {GpsStream.Length}");
@@ -217,23 +219,40 @@ namespace ViewSat
                     else
                     {
                         //Log.Write($"Проблема чтения {LastPackage} пакета");
-                        bool next = true;
-                        GpsStream.Position -= LastPackSize + 5;
+                        bool next = true;  //признак выхода из двух циклов
+                        GpsStream.Position -= LastPackSize + 5;  //выставить позицию чтения на размер считанного пакета на предыдущем такте и на размер маски считанной в текщем такте
+                        if (coincidence == false)
+                        {
+                            GpsStream.Position -= 3;
+                            GpsStream.Read(buf, 0, 5);
+                            CurBuf = Encoding.Default.GetString(buf);
+                            int ChkBuf1 = RecognizePackage(Packages, CurBuf);
+                            Log.Write($"Ошибка PackSize: Чтения {GpsStream.Position} байта. {e.Message}");
+                            if (ChkBuf1 > -1)
+                            {
+                                GpsStream.Position--;
+                                GpsStream.Position += SizeOfPackage[ChkBuf1];
+                                GpsStream.Position++;
+                                Log.Write($"Ошибка: Чтения маски {Packages[ChkBuf1]}. Потерян первый байт маски");
+                                coincidence = true;
+                                next = false;
+                            }
+                        }
                         for (int i = 0; i < LastPackSize && next; i++)
                         {
-                            byte[] ebuf = new byte[3];
-                            GpsStream.Read(ebuf, 0, 3);
-                            GpsStream.Position -= 2;
+                            byte[] ebuf = new byte[3];  //считываем по 3 байта и ищем знакомую маску
+                            GpsStream.Read(ebuf, 0, 3); // позиция +3
+                            GpsStream.Position -= 2;  // выставляем позицию чтения на один дальше от текущей позиции (позиция-2)
 
-                            CurBuf = Encoding.Default.GetString(ebuf);
+                            CurBuf = Encoding.Default.GetString(ebuf); // получаем маску
                             for (int j = 0; j < Packages.Count && next; j++)
                             {
-                                if (CurBuf == Packages[j])
+                                if (CurBuf == Packages[j])  // если буфер совпал с известной маской 
                                 {
                                     Log.Write($"Ошибка: Пакет {LastPackage} по адреcу {GpsStream.Position - LastPackSize} равен {i} байт. Требуемый размер {LastPackSize} байт");
                                     //Log.Write($"Ошибка чтения {GpsStream.Position} байта");
                                     GpsStream.Position -= 1;
-                                    next = false;
+                                    next = false;  // выходим из циклов
                                 }
                             }
                         }
@@ -264,21 +283,27 @@ namespace ViewSat
                     else
                         coincidence = false;
                 }
-                if (coincidence == false)
-                {
-                    int ChkBuf = RecognizePackage(Packages, CurBuf);
-                    Log.Write($"Ошибка PackSize: Чтения {GpsStream.Position} байта");
-                    if (ChkBuf > -1)
-                    {
-                        GpsStream.Position--;
-                        GpsStream.Position += SizeOfPackage[ChkBuf];
-                        GpsStream.Position++;
-                        Log.Write($"Ошибка: Чтения маски {Packages[ChkBuf]}. Потерян первый байт маски");
-                    }
-                    coincidence = true;
-                }
-                Start = DateTime.Now; // Старт (Записываем время)
+                //if (coincidence == false)
+                //{
+                //    int ChkBuf = RecognizePackage(Packages, CurBuf);
+                //    Log.Write($"Ошибка PackSize: Чтения {GpsStream.Position} байта");
+                //    if (ChkBuf > -1)
+                //    {
+                //        GpsStream.Position--;
+                //        GpsStream.Position += SizeOfPackage[ChkBuf];
+                //        GpsStream.Position++;
+                //        Log.Write($"Ошибка: Чтения маски {Packages[ChkBuf]}. Потерян первый байт маски");
+                //    }
+                //    coincidence = true;
+                //}
+//                Start = DateTime.Now; // Старт (Записываем время)
             }
+            Stoped = DateTime.Now; // Стоп (Записываем время)
+            Elapsed = Stoped.Subtract(Start);
+            Log.Write("Файл прочитан");
+            Log.Write($"Время затраченное на чтение = {Elapsed.Milliseconds.ToString()} мсек");
+            Log.Write("====================================================================================================");
+
         }
     }
 }
