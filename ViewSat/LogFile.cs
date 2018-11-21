@@ -5,7 +5,7 @@ namespace ViewSat
 {
     class LogFile
     {
-        private string FileName;
+        private readonly string FileName;
 
         public LogFile(string filename)
         {
